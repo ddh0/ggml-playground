@@ -71,6 +71,7 @@ namespace ANSI {
     constexpr inline const char * bell             = "\a";
     constexpr inline const char * terminal_reset   = "\x1b""c";
     constexpr inline const char * scrollback_clear = "\x1b[3J";
+
     // reset terminal + clear scrollback buffer + reset all text modes
     constexpr inline const char * clear = "\x1b""c\x1b[3J\x1b[0m";
 
