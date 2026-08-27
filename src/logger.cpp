@@ -10,70 +10,66 @@
 
 using namespace ANSI;
 
-
 std::string timestamp() {
-    const auto now   = std::chrono::system_clock::now();
-    const auto timer = std::chrono::system_clock::to_time_t(now);
-    const auto tm    = *std::localtime(&timer);
-    const auto ms    = std::chrono::duration_cast<std::chrono::milliseconds>
-        (now.time_since_epoch()) % 1000;
-
+    const auto now = std::chrono::system_clock::now();
+    const time_t now_t = std::chrono::system_clock::to_time_t(now);
+    const tm now_tm = *std::localtime(&now_t);
+    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch())
+        % 1000;
     std::ostringstream oss;
-    oss << std::put_time(&tm, "%F %T") << '.' << std::setfill('0') << std::setw(3) << ms.count();
-
+    oss << std::put_time(&now_tm, "%F %T") << '.' << std::setfill('0') << std::setw(3)
+        << ms.count();
     return oss.str();
 }
 
+// init
+logger::logger(
+    std::FILE * dbg_stream, std::FILE * inf_stream,
+    std::FILE * wrn_stream, std::FILE * err_stream
+):
+    dbg_stream_(dbg_stream), inf_stream_(inf_stream),
+    wrn_stream_(wrn_stream), err_stream_(err_stream) {}
 
-logger::logger(std::FILE * stdout_, std::FILE * stderr_):
-    out_(stdout_), err_(stderr_) {}
-
-int logger::clamp_lvl(int lvl) const noexcept {
-    const int lo = static_cast<int>(log_lvl::debug);
-    const int hi = static_cast<int>(log_lvl::error);
-    if (lvl < lo) { return lo; }
-    if (lvl > hi) { return hi; }
-    return lvl;
-}
-
-std::string logger::prefix(int lvl) {
+// get prefix string
+std::string logger::prefix(log_lvl lvl) const {
     std::ostringstream oss; oss << mode_bold_set;
     switch (lvl) {
-        case 0:  oss << fg_bright_white  << "  DEBUG"; break;
-        case 1:  oss << fg_bright_green  << "   INFO"; break;
-        case 2:  oss << fg_bright_yellow << "WARNING"; break;
-        case 3:  oss << fg_bright_red    << "  ERROR"; break;
-        default: oss << fg_bright_cyan   << "???????";
+        case log_lvl::debug:   oss << fg_bright_white  << "  DEBUG"; break;
+        case log_lvl::warning: oss << fg_bright_green  << "   INFO"; break;
+        case log_lvl::info:    oss << fg_bright_yellow << "WARNING"; break;
+        case log_lvl::error:   oss << fg_bright_red    << "  ERROR"; break;
+        default:               oss << fg_bright_cyan   << "???????";
     }
     oss << mode_reset_all << mode_bold_set << fg_bright_black << ":" << mode_reset_all;
     return oss.str();
 }
 
+// get full log string w/ prefix and styling
 std::string logger::get_str(log_lvl lvl, std::string_view msg) const {
     std::ostringstream oss;
-    oss << mode_bold_set << fg_bright_black 
-        << "[" << timestamp() << "]" << mode_reset_all << " "
-        << prefix(clamp_lvl(static_cast<int>(lvl))) << " " << msg;
+    oss << mode_bold_set << fg_bright_black << "[" << timestamp() << "]"
+        << mode_reset_all << " " << prefix(lvl) << " " << msg;
     return oss.str();
 }
 
-void logger::operator()(int lvl, std::string_view msg) {
-    auto const clamped = clamp_lvl(lvl);
-    auto *     stream  = (clamped >= static_cast<int>(log_lvl::warning)) ? err_ : out_;
-
+void logger::operator()(log_lvl lvl, std::string_view msg) const {
     std::ostringstream oss;
-    oss << mode_bold_set << fg_bright_black
-        << "[" << timestamp() << "]" << mode_reset_all << " "
-        << prefix(clamped) << " " << msg;
-
-    std::fprintf(stream, "%s\n", oss.str().c_str());
+    oss << mode_bold_set << fg_bright_black << "[" << timestamp() << "]"
+        << mode_reset_all << " " << prefix(lvl) << " " << msg;
+    switch (lvl) {
+        case log_lvl::debug:   std::fprintf(dbg_stream_, "%s\n", oss.str().c_str()); break;
+        case log_lvl::info:    std::fprintf(inf_stream_, "%s\n", oss.str().c_str()); break;
+        case log_lvl::warning: std::fprintf(wrn_stream_, "%s\n", oss.str().c_str()); break;
+        case log_lvl::error:   std::fprintf(err_stream_, "%s\n", oss.str().c_str()); break;
+        default: throw std::runtime_error("unreachable");
+    }
 }
 
-void logger::operator()(log_lvl lvl, std::string_view msg) {
-    (*this)(static_cast<int>(lvl), msg);
-}
-
-void logger::debug(std::string_view msg) { (*this)(log_lvl::debug,   msg); }
-void logger::info (std::string_view msg) { (*this)(log_lvl::info,    msg); }
-void logger::warn (std::string_view msg) { (*this)(log_lvl::warning, msg); }
-void logger::error(std::string_view msg) { (*this)(log_lvl::error,   msg); }
+// print debug message to stdout
+void logger::debug(std::string_view msg) const { (*this)(log_lvl::debug,   msg); }
+// print info message to stdout
+void logger::info (std::string_view msg) const { (*this)(log_lvl::info,    msg); }
+// print warning message to stderr
+void logger::warn (std::string_view msg) const { (*this)(log_lvl::warning, msg); }
+// print error message to stderr
+void logger::error(std::string_view msg) const { (*this)(log_lvl::error,   msg); }
