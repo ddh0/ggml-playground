@@ -87,10 +87,15 @@ enum class log_lvl : int {
     error   = 3
 };
 
+// utility to print log messages with ANSI styling
 struct logger {
-    explicit logger(
-        std::FILE * dbg_stream_ = stdout, std::FILE * inf_stream_ = stdout,
-        std::FILE * wrn_stream_ = stderr, std::FILE * err_stream_ = stderr
+
+    // by default, initialize with stdout for `debug` and `info` and stderr for `warn` and `error`
+    logger(
+        std::FILE * dbg_stream_ = stdout,
+        std::FILE * inf_stream_ = stdout,
+        std::FILE * wrn_stream_ = stderr,
+        std::FILE * err_stream_ = stderr
     );
 
     void operator()(log_lvl level, std::string_view msg) const;
@@ -101,6 +106,37 @@ struct logger {
     void error(std::string_view msg) const;
 
     std::string get_str(log_lvl lvl, std::string_view msg) const;
+
+    // printf-style formatting support
+    template <typename... Args>
+    std::string format(std::string_view fmt, const Args&... args) const {
+        int size = std::snprintf(nullptr, 0, fmt.data(), args...);
+        std::string buf(size, '\0');
+        std::snprintf(buf.data(), size + 1, fmt.data(), args...);
+        return buf;
+    }
+
+    template <typename... Args>
+    void operator()(log_lvl lvl, std::string_view fmt, const Args&... args) const {
+        (*this)(lvl, format(fmt, args...));
+    }
+
+    template <typename... Args>
+    void debug(std::string_view fmt, const Args&... args) const {
+        (*this)(log_lvl::debug,   fmt, args...);
+    }
+    template <typename... Args>
+    void info (std::string_view fmt, const Args&... args) const {
+        (*this)(log_lvl::info,    fmt, args...);
+    }
+    template <typename... Args>
+    void warn (std::string_view fmt, const Args&... args) const {
+        (*this)(log_lvl::warning, fmt, args...);
+    }
+    template <typename... Args>
+    void error(std::string_view fmt, const Args&... args) const {
+        (*this)(log_lvl::error,   fmt, args...);
+    }
 
     private:
         std::FILE * dbg_stream_;

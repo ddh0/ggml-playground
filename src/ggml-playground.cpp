@@ -5,6 +5,8 @@
 
 int main() {
     logger log;
-    log.info("start");
+    for (int i = 0; i < 128; ++i) {
+        log.info("i == %d", i);
+    }
     return EXIT_SUCCESS;
 }
