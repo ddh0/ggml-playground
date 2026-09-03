@@ -3,7 +3,7 @@
 
 #include <cstdio>
 #include <string>
-#include <string_view>
+#include <type_traits>
 
 // ANSI codes for terminal emulators
 namespace ANSI {
@@ -90,7 +90,6 @@ enum class log_lvl : int {
 // utility to print log messages with ANSI styling
 struct logger {
 
-    // by default, initialize with stdout for `debug` and `info` and stderr for `warn` and `error`
     logger(
         std::FILE * dbg_stream_ = stdout,
         std::FILE * inf_stream_ = stdout,
@@ -98,43 +97,50 @@ struct logger {
         std::FILE * err_stream_ = stderr
     );
 
-    void operator()(log_lvl level, std::string_view msg) const;
+    void operator()(log_lvl lvl, const char * msg) const;
+    void operator()(log_lvl lvl, const std::string & msg) const { (*this)(lvl, msg.c_str()); }
 
-    void debug(std::string_view msg) const;
-    void info (std::string_view msg) const;
-    void warn (std::string_view msg) const;
-    void error(std::string_view msg) const;
+    void debug(const char * msg) const;
+    void info (const char * msg) const;
+    void warn (const char * msg) const;
+    void error(const char * msg) const;
 
-    std::string get_str(log_lvl lvl, std::string_view msg) const;
+    std::string get_str(log_lvl lvl, const char * msg) const;
 
-    // printf-style formatting support
+    //
+    // variadic formatting support
+    //
+
     template <typename... Args>
-    std::string format(std::string_view fmt, const Args&... args) const {
-        int size = std::snprintf(nullptr, 0, fmt.data(), args...);
+    std::string format(const char * fmt, const Args&... args) const {
+        static_assert((!std::is_same_v<std::decay_t<Args>, std::string> && ...),
+            "pass .c_str() for std::string arguments");
+        int size = std::snprintf(nullptr, 0, fmt, args...);
+        if (size < 0) return {};
         std::string buf(size, '\0');
-        std::snprintf(buf.data(), size + 1, fmt.data(), args...);
+        std::snprintf(buf.data(), size + 1, fmt, args...);
         return buf;
     }
 
     template <typename... Args>
-    void operator()(log_lvl lvl, std::string_view fmt, const Args&... args) const {
+    void operator()(log_lvl lvl, const char * fmt, const Args&... args) const {
         (*this)(lvl, format(fmt, args...));
     }
 
     template <typename... Args>
-    void debug(std::string_view fmt, const Args&... args) const {
+    void debug(const char * fmt, const Args&... args) const {
         (*this)(log_lvl::debug,   fmt, args...);
     }
     template <typename... Args>
-    void info (std::string_view fmt, const Args&... args) const {
+    void info (const char * fmt, const Args&... args) const {
         (*this)(log_lvl::info,    fmt, args...);
     }
     template <typename... Args>
-    void warn (std::string_view fmt, const Args&... args) const {
+    void warn (const char * fmt, const Args&... args) const {
         (*this)(log_lvl::warning, fmt, args...);
     }
     template <typename... Args>
-    void error(std::string_view fmt, const Args&... args) const {
+    void error(const char * fmt, const Args&... args) const {
         (*this)(log_lvl::error,   fmt, args...);
     }
 

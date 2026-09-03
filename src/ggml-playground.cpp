@@ -40,19 +40,20 @@ int main() {
         ggml_backend_cpu_set_n_threads(backend, N_THREADS);
     }
 
-    struct ggml_tensor * x = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, 1); // define input x
-    ggml_set_name(x, "x");                                              // label input x
-    ggml_set_input(x);                                                  // XXX: is this correct?
-    struct ggml_tensor * a = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, 1); // define scalar a
-    ggml_set_name(a, "a");                                              // label scalar a
-    struct ggml_tensor * b = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, 1); // define scalar b
-    ggml_set_name(b, "b");                                              // label scalar b
-    struct ggml_tensor * x2 = ggml_mul(ctx, x, x);                      // define x^2
-    ggml_set_name(x2, "x^2");                                           // label x^2
+    // define the input scalar, label it, and mark it as input for the scheduler
+    struct ggml_tensor * x = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, 1);
+    ggml_set_name(x, "x"); ggml_set_input(x);
 
-    struct ggml_tensor * f = ggml_add(ctx, ggml_mul(ctx, a, x2), b); // define the function
-    ggml_set_name(f, "f");                                           // name the function
-    ggml_set_output(f);                                              // XXX: is this correct?
+    // define and label the scalar parameters
+    struct ggml_tensor * a = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, 1); ggml_set_name(a, "a");
+    struct ggml_tensor * b = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, 1); ggml_set_name(b, "b");
+
+    // define and label x^2 intermediate node
+    struct ggml_tensor * x2 = ggml_mul(ctx, x, x); ggml_set_name(x2, "x^2");
+
+    // define the function, label it, and mark it as output for the scheduler
+    struct ggml_tensor * f = ggml_add(ctx, ggml_mul(ctx, a, x2), b);
+    ggml_set_name(f, "f"); ggml_set_output(f);
 
     // allocate all tensors in the backend buffer
     ggml_backend_buffer_t buf = ggml_backend_alloc_ctx_tensors(ctx, backend);

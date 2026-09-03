@@ -4,20 +4,25 @@
 
 #include <chrono>
 #include <cstdio>
-#include <ctime>
 #include <iomanip>
 #include <sstream>
+#include <stdexcept>
 
 using namespace ANSI;
 
 std::string timestamp() {
     const auto now = std::chrono::system_clock::now();
-    const time_t now_t = std::chrono::system_clock::to_time_t(now);
-    const tm now_tm = *std::localtime(&now_t);
+    const std::time_t now_t = std::chrono::system_clock::to_time_t(now);
+
+    std::tm now_tm {};
+    if (!localtime_r(&now_t, &now_tm)) {
+        throw std::runtime_error("localtime_r failed"); // very unexpected
+    }
+
     const auto us = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch());
     std::ostringstream oss;
     oss << std::put_time(&now_tm, "%F %a %T") << '.' << std::setfill('0')
-        << std::setw(4) << ((us.count() / 100) % 10000);
+        << std::setw(4) << ((us.count() / 100) % 10000); // show ten-thousandths of a second
     return oss.str();
 }
 
@@ -48,7 +53,7 @@ std::string logger::prefix(log_lvl lvl) const {
 }
 
 // get full log string w/ prefix and styling
-std::string logger::get_str(log_lvl lvl, std::string_view msg) const {
+std::string logger::get_str(log_lvl lvl, const char * msg) const {
     std::ostringstream oss;
     oss << mode_bold_set << fg_bright_black << "[" << timestamp() << "]"
         << mode_reset_all << " " << prefix(lvl) << " " << msg;
@@ -56,21 +61,21 @@ std::string logger::get_str(log_lvl lvl, std::string_view msg) const {
 }
 
 // manually specify a log level and message
-void logger::operator()(log_lvl lvl, std::string_view msg) const {
+void logger::operator()(log_lvl lvl, const char * msg) const {
     switch (lvl) {
         case log_lvl::debug:   std::fprintf(dbg_stream_, "%s\n", get_str(lvl, msg).c_str()); break;
         case log_lvl::info:    std::fprintf(inf_stream_, "%s\n", get_str(lvl, msg).c_str()); break;
         case log_lvl::warning: std::fprintf(wrn_stream_, "%s\n", get_str(lvl, msg).c_str()); break;
         case log_lvl::error:   std::fprintf(err_stream_, "%s\n", get_str(lvl, msg).c_str()); break;
-        default: throw std::runtime_error("unreachable");
+        default: throw std::runtime_error("invalid log_lvl");
     }
 }
 
 // print debug message to stdout
-void logger::debug(std::string_view msg) const { (*this)(log_lvl::debug,   msg); }
+void logger::debug(const char * msg) const { (*this)(log_lvl::debug,   msg); }
 // print info message to stdout
-void logger::info (std::string_view msg) const { (*this)(log_lvl::info,    msg); }
+void logger::info (const char * msg) const { (*this)(log_lvl::info,    msg); }
 // print warning message to stderr
-void logger::warn (std::string_view msg) const { (*this)(log_lvl::warning, msg); }
+void logger::warn (const char * msg) const { (*this)(log_lvl::warning, msg); }
 // print error message to stderr
-void logger::error(std::string_view msg) const { (*this)(log_lvl::error,   msg); }
+void logger::error(const char * msg) const { (*this)(log_lvl::error,   msg); }
